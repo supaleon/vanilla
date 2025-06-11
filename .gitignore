@@ -1,0 +1,36 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+bin
+
+# Crash log files
+crash.log
+
+# macos
+.DS_Store
+
+# App Engine
+*credentials.json
+*credentials.yaml
+
+# Intellij IDEs
+.idea
+
+# NPM
+node_modules
+
+# VSCode
+.vscode
+__debug_bin
+
+# E2E
+__diff_output__

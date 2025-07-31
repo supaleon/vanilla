@@ -1,3 +1,0 @@
-// import "./Index.html"
-
-export {}

@@ -1,0 +1,32 @@
+<script>
+    import "./test.html"
+    import "./xx.js"
+
+    window.alert(111)
+    let c = new MessageChannel()
+    let z = extern("1")
+
+    /**
+     * @param {number} arg1
+     * @param {Event} event
+     */
+    function handle(arg1, event) {
+        event.preventDefault()
+    }
+
+    let val = 123
+</script>
+
+<div>
+    <div>
+        <div class=>
+            <div>
+                {for index, value in 1..9}
+                <button whenclick={handle(index)} len=2 z={}>click me</button>
+                {/for}
+            </div>
+        </div>
+    </div>
+    <span style="color: red"> sdadsa </span>
+    <div style="color: red"></div>
+</div>

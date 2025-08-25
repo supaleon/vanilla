@@ -95,11 +95,11 @@ Vanilla leverages an opinionated content layout for components.
     // ES Module code block
 </script>
 
-<fragment>
+<metadata>
     <!--Template code block-->
     <title>My First Vanilla Page</title>
     <meta charset="UTF-8"/>
-</fragment>
+</metadata>
 ```
 
 ### 组件导入
@@ -128,10 +128,10 @@ Vanilla 支持在`Javascript 代码块`中使用 `import` 语句引入其他组�
 Vanilla 也称组件属性为`Macro Variable`，因为这些声明这些组件属性的`Macro`会在编译和运行时展开。
 
 #### 属性声明
-Vanilla 在`Javascript 代码块`置入了一个关键字`extern`，extern 看起来就像一个JS函数（不过它是一个`Macro`），组件属性通过这个宏来声明。
+Vanilla 在`Javascript 代码块`置入了一个关键字`prop`，prop 看起来就像一个JS函数（不过它是一个`Macro`），组件属性通过这个宏来声明。
 
 Vanilla 组件的属性声明必须符合以下规范：
-1. `extern macro`接受参数只能是 Go 的composite types(Struct、Map、Slice)的实例，或JS字面量类型实例，比如boolean, number, string, empty array(aka []), empty object(aka {})。
+1. `prop macro`接受参数只能是 Go 的composite types(Struct、Map、Slice)的实例，或JS字面量类型实例，比如boolean, number, string, empty array(aka []), empty object(aka {})。
 2. 属性声明必须使用let关键字来。
 3. 属性声明不支持JS的解构赋值语法。
 
@@ -140,19 +140,19 @@ Vanilla 组件的属性声明必须符合以下规范：
 <script>
     import {User} from "./user.go"
     // Equals Go's User type instance `User{}`.
-    let user = extern(User())
+    let user = prop(User())
     // Equals Go's []any type instance `make([]any,0)`.
-    let tags = extern([])
+    let tags = prop([])
     // Equals Go's map[string]any type instance `make(map[string]any)`.
-    let jsonObject = extern({})
+    let jsonObject = prop({})
     // Equals Go's string type instance `dark`.
-    let theme = extern("dark")
+    let theme = prop("dark")
     // Equals Go's bool type instance `false`.
-    let disable = extern(false)
+    let disable = prop(false)
     // Equals Go's int32 type instance `1`.
-    let counts = extern(1)
+    let counts = prop(1)
     // Equals Go's float32 type instance `0.8`.
-    let discount = extern(0.8)
+    let discount = prop(0.8)
 </script>
 
 <div>
@@ -171,7 +171,7 @@ Vanilla 同样支持一个简单的 boolean unary 表达式访问，比如`{!use
 ```HTML
 <script>
     import {User} from "./user.go"
-    let user = extern(User())
+    let user = prop(User())
 </script>
 
 <div>
@@ -190,7 +190,7 @@ Vanilla 同样支持一个简单的 boolean unary 表达式访问，比如`{!use
 `Top.html`
 ```HTML
 <script>
-    let theme = extern("dark")
+    let theme = prop("dark")
 </script>
 
 <div>
@@ -204,7 +204,7 @@ Vanilla 同样支持一个简单的 boolean unary 表达式访问，比如`{!use
 ```HTML
 <script>
     import {User} from "./user.go"
-    let user = extern(User())
+    let user = prop(User())
 </script>
 
 <div>
@@ -217,9 +217,9 @@ Vanilla 同样支持一个简单的 boolean unary 表达式访问，比如`{!use
 <script>
     import {Tags} from "./tag.go"
     // Accepts the value from `Parent.html` component.
-    let tags = extern(Tags())
+    let tags = prop(Tags())
     // Will be overwritten by `Top.html` component.
-    let theme = extern("light")
+    let theme = prop("light")
 </script>
 
 <div class="{theme}">
@@ -246,7 +246,7 @@ Vanilla 组件支持在模板中使用几个必须的函数。函数不支持嵌
 <script>
     import {User} from "./user.go"
     import Card from "./Card.HTML"
-    let user = extern(User())
+    let user = prop(User())
 </script>
 
 <div class="{user.theme}">

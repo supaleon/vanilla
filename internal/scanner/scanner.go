@@ -23,23 +23,22 @@ import (
 type state uint8
 
 const (
-	stateText     state = iota // abc
-	stateTextExpr              // {if a > 1}
+	stateText      state = iota // abc
+	stateCodeBlock              // {if a > 1} or {user.name} or {/if} or {for k,v in 1..9}
 
-	stateStartTagOpen // <
-	stateStartTag     // <div class="abc {cls} def">
+	stateTagOpen  // < or </
+	stateStartTag // div
 
-	stateAttrName          // class="abc {cls} def"
+	stateAttrName          // class
 	stateAttrValSep        // =
-	stateAttrExpr          // disable={!disable}
+	stateAttrExpr          // {!disable}
 	stateUnquotedAttrVal   // data-value=123
-	stateQuotedAttrVal     // class="dark {isLoggedIn:pro}"
+	stateQuotedAttrVal     // "dark {isLoggedIn:pro}"
 	stateAttrValDelimOpen  // ' or "
-	stateAttrValInterp     // class="dark {isLoggedIn:pro}"
+	stateAttrValInterp     // {isLoggedIn:dark}
 	stateAttrValDelimClose // ' or "
 
-	stateEndTagOpen     // </
-	stateEndTag         // </div>
+	stateEndTag         // div
 	stateTagClose       // >
 	stateTagSelfClosing // />
 )
@@ -62,9 +61,8 @@ type Scanner struct {
 
 	rawTag []byte // current tag: title,textarea,style,script,plaintext,xmp...
 
-	state     state
-	delimiter rune // attribute value delimiter ' or "
-	inExpr    bool // in {}
+	state            state
+	attrValDelimOpen rune // attribute value attrValDelimOpen ' or "
 
 	errorHandler ErrorHandler // error reporting; or nil
 	// public state - ok to modify
@@ -359,7 +357,7 @@ func invalidSep(x string) int {
 
 func (s *Scanner) scanNumber() (tok token.Token, lit string) {
 	offs := s.offset
-	tok = token.ErrorToken
+	tok = token.ILLEGAL
 
 	base := 10        // number base
 	prefix := rune(0) // one of 0 (decimal), '0' (0-octal), 'x', 'o', or 'b'
@@ -368,7 +366,7 @@ func (s *Scanner) scanNumber() (tok token.Token, lit string) {
 
 	// integer part
 	if s.ch != '.' {
-		tok = token.INTToken
+		tok = token.INT
 		if s.ch == '0' {
 			s.next()
 			switch lower(s.ch) {
@@ -392,11 +390,11 @@ func (s *Scanner) scanNumber() (tok token.Token, lit string) {
 	// fractional part
 	if s.ch == '.' {
 		if p := s.peek(); p == '.' {
-			tok = token.INTToken
+			tok = token.INT
 			lit = string(s.src[offs:s.offset])
 			return
 		}
-		tok = token.FloatToken
+		tok = token.FLOAT
 		if prefix == 'o' || prefix == 'b' {
 			s.error(s.offset, "invalid radix point in "+litname(prefix))
 		}
@@ -418,7 +416,7 @@ func (s *Scanner) scanNumber() (tok token.Token, lit string) {
 			s.errorf(s.offset, "%q exponent requires hexadecimal mantissa", s.ch)
 		}
 		s.next()
-		tok = token.FloatToken
+		tok = token.FLOAT
 		if s.ch == '+' || s.ch == '-' {
 			s.next()
 		}
@@ -427,20 +425,19 @@ func (s *Scanner) scanNumber() (tok token.Token, lit string) {
 		if ds&1 == 0 {
 			s.error(s.offset, "exponent has no digits")
 		}
-	} else if prefix == 'x' && tok == token.FloatToken {
+	} else if prefix == 'x' && tok == token.FLOAT {
 		s.error(s.offset, "hexadecimal mantissa requires a 'p' exponent")
 	}
 
 	// suffix 'i'
-	// todo
 	if s.ch == 'i' {
-		tok = token.IMAGToken
+		tok = token.ILLEGAL
 		s.error(s.offset, "imaginary numbers are not allowed")
 		s.next()
 	}
 
 	lit = string(s.src[offs:s.offset])
-	if tok == token.INTToken && invalid >= 0 {
+	if tok == token.INT && invalid >= 0 {
 		s.errorf(invalid, "invalid digit %q in %s", lit[invalid-offs], litname(prefix))
 	}
 	if digsep&2 != 0 {
@@ -503,7 +500,7 @@ exit:
 }
 
 // scanEscape parses an escape sequence where rune is the accepted
-// escaped delimiter. In case of a syntax error, it stops at the offending
+// escaped attrValDelimOpen. In case of a syntax error, it stops at the offending
 // character (without consuming it) and returns false. Otherwise,
 // it returns true.
 func (s *Scanner) scanEscape(quote rune) bool {
@@ -591,11 +588,18 @@ func (s *Scanner) scanRune() (tok token.Token, lit string) {
 	if valid && n != 1 {
 		s.error(offs, "illegal rune literal")
 	}
-	tok = token.CHARToken
+	tok = token.CHAR
 	lit = string(s.src[offs:s.offset])
 	return
 }
 
+// scanString scan characters in if statement.
+// {if var1 == "abc"}
+// Some case like this {if var1 == "<a"} conflicts with the HTML start tag open token.
+// Fixme: Use {if var1 == "&lt;abc"} instead to avoid ambiguity???
+//
+// Some case like this {if var1 < 42} conflicts with the VSCode Editor's builtin HTML parser, but ok.
+// Use {if 42 > var1} instead to avoid ambiguity.
 func (s *Scanner) scanString() (tok token.Token, lit string) {
 	// '"' opening already consumed
 	off := s.offset - 1
@@ -604,16 +608,14 @@ func (s *Scanner) scanString() (tok token.Token, lit string) {
 		if isWhitespace(ch) && s.state == stateUnquotedAttrVal {
 			s.error(off, "string literal not terminated")
 			s.state = stateAttrName
-			tok = token.ErrorToken
+			tok = token.ILLEGAL
 			lit = string(s.src[off:s.offset])
-			s.inExpr = false
 			break
 		}
-		if s.state == stateQuotedAttrVal && ch == s.delimiter {
+		if s.state == stateQuotedAttrVal && ch == s.attrValDelimOpen {
 			s.error(off, "string literal not terminated")
-			tok = token.ErrorToken
+			tok = token.ILLEGAL
 			lit = string(s.src[off:s.offset])
-			s.inExpr = false
 			break
 		}
 		if ch == '\n' || ch < 0 {
@@ -623,7 +625,7 @@ func (s *Scanner) scanString() (tok token.Token, lit string) {
 		if ch == '"' {
 			s.next()
 			lit = string(s.src[off:s.offset])
-			tok = token.StringToken
+			tok = token.STRING
 			break
 		}
 		if ch == '\\' {
@@ -631,35 +633,6 @@ func (s *Scanner) scanString() (tok token.Token, lit string) {
 		}
 		s.next()
 	}
-	return
-}
-
-// scanRawString scan characters in if statement.
-// {if var1 == `abc`}
-// Some case like this {if var1 == `<a`} conflicts with the HTML start tag open token.
-// Fixme: Use {if var1 == "&lt;abc"} instead to avoid ambiguity???
-//
-// Some case like this {if var1 < 42} conflicts with the VSCode Editor's builtin HTML parser, but ok.
-// Use {if 42 > var1} instead to avoid ambiguity.
-func (s *Scanner) scanRawString() (tok token.Token, lit string) {
-	// '`' opening already consumed
-	tok = token.ErrorToken
-	off := s.offset - 1
-	for {
-		if s.ch < 0 {
-			s.error(off, "raw string literal not terminated")
-			break
-		}
-		if s.ch == '`' {
-			tok = token.StringToken
-			break
-		}
-		if s.advanceToTagOpen(false) {
-			break
-		}
-		s.next()
-	}
-	lit = string(s.src[off:s.offset])
 	return
 }
 
@@ -674,7 +647,7 @@ func (s *Scanner) skipWhitespace() {
 }
 
 func (s *Scanner) scanXmlInstruction() (tok token.Token, lit string) {
-	tok = token.CommentToken
+	tok = token.COMMENT
 	off := s.offset
 	// consume '<'
 	s.next()
@@ -698,7 +671,7 @@ var doctype = []byte("DOCTYPE")
 // scanDoctype treats all characters starting with `<!` as comments,
 // except those starting with `<!DOCTYPE`
 func (s *Scanner) scanDoctype() (tok token.Token, lit string) {
-	tok = token.CommentToken
+	tok = token.COMMENT
 	off := s.offset
 	err := "incorrectly opened comment"
 	// consume '<'
@@ -720,7 +693,7 @@ func (s *Scanner) scanDoctype() (tok token.Token, lit string) {
 	case lower(r) == 'd':
 		// TODO use a hash algo do this.
 		if dt, size := s.peekN(7); size > 0 && bytes.EqualFold(dt, doctype) {
-			tok = token.DoctypeToken
+			tok = token.DOCTYPE
 			// <!DOCTYPE html>
 			err = "component source cannot contain HTML Doctype"
 		}
@@ -744,7 +717,7 @@ func (s *Scanner) scanDoctype() (tok token.Token, lit string) {
 // readComment
 // <!--abc--> comment.
 func (s *Scanner) readComment(off int) (tok token.Token, lit string) {
-	tok = token.CommentToken
+	tok = token.COMMENT
 	// consume characters until '-->' or eof found
 	for {
 		s.next()
@@ -769,7 +742,7 @@ func (s *Scanner) readComment(off int) (tok token.Token, lit string) {
 }
 
 func (s *Scanner) scanText() (tok token.Token, lit string) {
-	tok = token.TextToken
+	tok = token.TEXT
 	off := s.offset
 	// scan until found <, {, eof
 	for {
@@ -810,15 +783,10 @@ func (s *Scanner) advanceToTagOpen(skipWhitespace bool) (ok bool) {
 	}
 	// <div or </div
 	if s.ch == '<' {
-		ok = true
-		r, _ := s.peekRune()
-		if r == '/' {
-			s.state = stateEndTagOpen
-			return
-		}
-		s.state = stateStartTagOpen
+		s.state = stateTagOpen
 	}
-	s.delimiter = 0
+	//todo
+	s.attrValDelimOpen = 0
 	return
 }
 
@@ -848,11 +816,8 @@ func (s *Scanner) advance(skipWhitespace bool) (ok bool) {
 		s.state = stateTagClose
 		ok = true
 	case ch == '<':
-		s.state = stateStartTagOpen
+		s.state = stateTagOpen
 		ok = true
-		if p := s.peek(); p == '/' {
-			s.state = stateEndTagOpen
-		}
 	case ch == '/':
 		if p := s.peek(); p == '>' {
 			s.state = stateTagSelfClosing
@@ -1003,7 +968,7 @@ func (s *Scanner) scanAttrName() string {
 
 func (s *Scanner) scanUnquotedAttrValue() (tok token.Token, lit string) {
 	errOff := -1
-	tok = token.AttrValTextToken
+	tok = token.ATTRValText
 	off := s.offset
 	for {
 		if s.ch == '"' || s.ch == '\'' || s.ch == '=' {
@@ -1059,7 +1024,7 @@ func (s *Scanner) scanQuotedAttrVal() string {
 		if s.ch < 0 {
 			break
 		}
-		if s.ch == s.delimiter {
+		if s.ch == s.attrValDelimOpen {
 			s.state = stateAttrValDelimClose
 			break
 		}
@@ -1078,12 +1043,12 @@ func (s *Scanner) scanQuotedAttrVal() string {
 	return string(s.src[off:s.offset])
 }
 
-func (s *Scanner) scanBasicExpr() (tok token.Token, lit string) {
-	tok = token.ErrorToken
+func (s *Scanner) scanBasicExpr(useHtmlSyncPoints bool) (tok token.Token, lit string) {
+	tok = token.ILLEGAL
 	off := s.offset
 	switch ch := s.ch; {
 	case ch == '-':
-		tok = token.SUBToken
+		tok = token.SUB
 		s.next()
 	case isDecimal(ch) || ch == '.' && isDecimal(rune(s.peek())):
 		tok, lit = s.scanNumber()
@@ -1093,25 +1058,25 @@ func (s *Scanner) scanBasicExpr() (tok token.Token, lit string) {
 			// keywords are longer than one letter - avoid lookup otherwise
 			tok = token.Lookup(lit)
 		} else {
-			tok = token.IDENTToken
+			tok = token.IDENT
 		}
 	case ch == '!':
 		s.next()
-		tok = token.NotToken
+		tok = token.NOT
 	case ch == '.':
-		tok = token.DotToken
+		tok = token.DOT
 		s.next()
 	case ch == '[':
-		tok = token.LBracketToken
+		tok = token.LBRACKET
 		s.next()
 	case ch == ']':
-		tok = token.RBracketToken
+		tok = token.RBRACKET
 		s.next()
 	case ch == '(':
-		tok = token.LPARENToken
+		tok = token.LPAREN
 		s.next()
 	case ch == ')':
-		tok = token.RPARENToken
+		tok = token.RPAREN
 		s.next()
 	default:
 		r, _ := utf8.DecodeRune(s.src[s.offset:])
@@ -1119,11 +1084,14 @@ func (s *Scanner) scanBasicExpr() (tok token.Token, lit string) {
 		// scan until find a sync point.
 		for {
 			// todo
-			if s.ch > 0 && s.ch == s.delimiter {
+			if s.ch > 0 && s.ch == s.attrValDelimOpen {
 				s.state = stateAttrValDelimClose
 				break
 			}
-			if s.ch < 0 || isWhitespace(s.ch) || s.advance(false) {
+			if s.ch < 0 {
+				break
+			}
+			if useHtmlSyncPoints && s.advanceToTagOpen(false) {
 				break
 			}
 			s.next()
@@ -1133,10 +1101,14 @@ func (s *Scanner) scanBasicExpr() (tok token.Token, lit string) {
 	return
 }
 
-func (s *Scanner) scanCondTextExpr(useHtmlSyncPoints bool) (tok token.Token, lit string) {
-	// conditional text expression
-	// class="{!disable:light}"
-	tok = token.ErrorToken
+// scanSpecifier
+// conditional text expression & format expression.
+// class="{!disable:light}"
+// <div>{isLoggedIn: Welcome back!}</div>
+// class="{user.createTime % YY-MM-DD HH:MM:SS}"
+// class="{user.score %.2f}"
+func (s *Scanner) scanSpecifier(specTok token.Token) (tok token.Token, lit string) {
+	tok = token.ILLEGAL
 	off := s.offset
 	errOff := -1
 	for {
@@ -1146,10 +1118,18 @@ func (s *Scanner) scanCondTextExpr(useHtmlSyncPoints bool) (tok token.Token, lit
 			break
 		}
 		if s.ch == '}' {
-			tok = token.FMTToken
+			tok = specTok
 			break
 		}
-		if useHtmlSyncPoints && s.advance(false) {
+		// "
+		if s.state == stateQuotedAttrVal && s.ch == s.attrValDelimOpen {
+			s.state = stateAttrValDelimClose
+			errOff = s.offset
+			break
+		}
+		// <
+		if s.state == stateText && s.ch == '<' {
+			s.state = stateTagOpen
 			errOff = s.offset
 			break
 		}
@@ -1161,34 +1141,8 @@ func (s *Scanner) scanCondTextExpr(useHtmlSyncPoints bool) (tok token.Token, lit
 	return
 }
 
-func (s *Scanner) scanFormatExpr(useHtmlSyncPoints bool) (tok token.Token, lit string) {
-	tok = token.ErrorToken
-	off := s.offset
-	errOff := -1
-	for {
-		s.next()
-		if s.ch < 0 {
-			errOff = s.offset
-			break
-		}
-		if s.ch == '}' {
-			tok = token.FMTToken
-			break
-		}
-		if useHtmlSyncPoints && s.advance(false) {
-			errOff = s.offset
-			break
-		}
-	}
-	lit = string(s.src[off:s.offset])
-	if errOff > -1 {
-		s.error(errOff, "format expression not terminated")
-	}
-	return
-}
-
 func (s *Scanner) scanAttrExpr() (tok token.Token, lit string) {
-	tok = token.ErrorToken
+	tok = token.ILLEGAL
 	off := s.offset
 	switch ch := s.ch; {
 	case isWhitespace(ch):
@@ -1196,63 +1150,73 @@ func (s *Scanner) scanAttrExpr() (tok token.Token, lit string) {
 		lit = string(s.src[off:s.offset])
 	case ch == '{':
 		// fixme: class={{{{hello}
-		tok = token.LBRACEToken
+		tok = token.LBRACE
 		s.next()
 	case ch == '}':
 		s.next()
-		tok = token.RBRACEToken
+		tok = token.RBRACE
 		if s.advance(false) {
 			break
 		}
 		s.state = stateAttrName
 		if !isWhitespace(s.ch) {
-			s.error(s.offset, "22missing whitespace between attribute name and the previous attribute")
+			s.error(s.offset, "missing whitespace between attribute name and the previous attribute")
 		}
 	default:
-		tok, lit = s.scanBasicExpr()
+		tok, lit = s.scanBasicExpr(true)
 	}
 	return
 }
+
+// delimiter, whitespace, tagClose, tagOpen
 
 func (s *Scanner) scanAttrValInterp() (tok token.Token, lit string) {
 	switch ch := s.ch; {
 	case ch == '{':
 		s.next()
-		tok = token.LBRACEToken
+		tok = token.LBRACE
 	case ch == '}':
 		s.next()
-		tok = token.RBRACEToken
+		tok = token.RBRACE
 		s.state = stateQuotedAttrVal
 	case ch == '%':
-		tok, lit = s.scanFormatExpr(true)
+		tok, lit = s.scanSpecifier(token.FMT)
 	case ch == ':':
-		tok, lit = s.scanCondTextExpr(true)
+		tok, lit = s.scanSpecifier(token.CONDText)
 	default:
-		tok, lit = s.scanBasicExpr()
+		tok, lit = s.scanBasicExpr(false)
 	}
 	return
 }
 
-func (s *Scanner) scanTextExpr() (tok token.Token, lit string) {
+func (s *Scanner) scanCodeBlock() (tok token.Token, lit string) {
 	// {!disable}
-	tok = token.ErrorToken
+	tok = token.ILLEGAL
 	off := s.offset
 	switch ch := s.ch; {
 	case ch == '{':
 		s.next()
-		tok = token.LBRACEToken
+		tok = token.LBRACE
 	case ch == '}':
 		s.next()
-		tok = token.RBRACEToken
+		tok = token.RBRACE
 		s.state = stateText
 	case ch == '/':
+		tok = token.SLASH
 		s.next()
 		if isWhitespace(s.ch) {
-			s.error(s.offset, "flow control keyword cannot contain whitespaces")
+			for {
+				s.next()
+				if s.ch < 0 || s.ch == '}' || s.advanceToTagOpen(true) {
+					break
+				}
+			}
+			lit = string(s.src[off:s.offset])
+			tok = token.ILLEGAL
+			s.error(off, "invalid flow control end token")
 		}
-		tok = token.SlashToken
 	case ch == '-':
-		tok = token.SUBToken
+		tok = token.SUB
 		s.next()
 	case isDecimal(ch) || ch == '.' && isDecimal(rune(s.peek())):
 		tok, lit = s.scanNumber()
@@ -1262,27 +1226,24 @@ func (s *Scanner) scanTextExpr() (tok token.Token, lit string) {
 			// keywords are longer than one letter - avoid lookup otherwise
 			tok = token.Lookup(lit)
 		} else {
-			tok = token.IDENTToken
+			tok = token.IDENT
 		}
 	case ch == '.':
-		tok = token.DotToken
+		tok = token.DOT
 		s.next()
 		if s.ch == '.' {
 			s.next()
-			tok = token.DotDotToken
+			tok = token.DOTDot
 		}
 	case ch == '=':
 		s.next()
 		if s.ch == '=' {
 			s.next()
-			tok = token.EQToken
-			if !isWhitespace(s.ch) {
-				s.error(s.offset, "operator must be followed by a whitespace")
-			}
+			tok = token.EQ
 			break
 		}
 		// fixme: caution!
-		tok = token.ErrorToken
+		tok = token.ILLEGAL
 		for {
 			s.next()
 			if s.ch < 0 || s.advanceToTagOpen(false) {
@@ -1293,55 +1254,47 @@ func (s *Scanner) scanTextExpr() (tok token.Token, lit string) {
 	case ch == '>':
 		if s.ch == '=' {
 			s.next()
-			tok = token.GTEToken
+			tok = token.GE
 		} else {
-			tok = token.GTToken
-		}
-		if !isWhitespace(s.ch) {
-			s.error(s.offset, "operator must be followed by a whitespace")
+			tok = token.GT
 		}
 	case ch == '<':
 		s.next()
 		if s.ch == '=' {
 			s.next()
-			tok = token.LTEToken
+			tok = token.LE
 		} else {
-			tok = token.LTToken
-		}
-		if !isWhitespace(s.ch) {
-			s.error(s.offset, "operator must be followed by a whitespace")
+			//println("11111========", string(s.ch))
+			tok = token.LT
 		}
 	case ch == '%':
-		tok, lit = s.scanFormatExpr(true)
+		tok, lit = s.scanSpecifier(token.FMT)
 	case ch == ':':
-		tok, lit = s.scanCondTextExpr(true)
+		tok, lit = s.scanSpecifier(token.CONDText)
 	case ch == '!':
 		s.next()
-		tok = token.NotToken
+		tok = token.NOT
 	case ch == '[':
-		tok = token.LBracketToken
+		tok = token.LBRACKET
 		s.next()
 	case ch == ']':
-		tok = token.RBracketToken
+		tok = token.RBRACKET
 		s.next()
 	case ch == '(':
-		tok = token.LPARENToken
+		tok = token.LPAREN
 		s.next()
 	case ch == ')':
-		tok = token.RPARENToken
+		tok = token.RPAREN
 		s.next()
 	case ch == ',':
 		s.next()
-		tok = token.COMMAToken
+		tok = token.COMMA
 	case ch == '"':
 		s.next()
 		tok, lit = s.scanString()
 	case ch == '\'':
 		s.next()
 		tok, lit = s.scanRune()
-	case ch == '`':
-		s.next()
-		tok, lit = s.scanRawString()
 	default:
 		// handler error token until found } or html TagOpen sync points.
 		for {
@@ -1352,39 +1305,24 @@ func (s *Scanner) scanTextExpr() (tok token.Token, lit string) {
 		}
 		lit = string(s.src[off:s.offset])
 	}
+	//println("11111========", string(s.ch), tok.IsKeyword())
+	if tok.IsOperator() && !isWhitespace(s.ch) {
+		s.error(s.offset, "operator must be surrounded by space")
+	}
 	return
 }
 
-// Enforces component source code must begin with a valid HTML tag to ensure readability.
-func (s *Scanner) checkHeader() {
-	valid := true
-	// current token start
-	if s.ch != '<' {
-		valid = false
-	} else {
-		r, _ := s.peekRune()
-		if !isUnicodeLetter(r) {
-			valid = false
-		}
-	}
-	if !valid {
-		s.error(s.offset, "component source code must begin with a valid HTML tag to ensure readability")
-	}
-}
-
 func (s *Scanner) Scan() (loc token.Loc, tok token.Token, lit string) {
-	tok = token.ErrorToken
+	tok = token.ILLEGAL
 	if s.offset == 0 {
 		// Enforces component source code must begin with a valid HTML tag to ensure readability.
-		switch ch := s.ch; {
-		case ch == '<':
+		if s.ch == '<' {
 			if r, _ := s.peekRune(); isUnicodeLetter(r) {
-				s.state = stateStartTagOpen
+				s.state = stateTagOpen
 				goto scanAgain
 			}
-		default:
-			s.error(s.offset, "component source code must begin with a valid HTML tag to ensure readability")
 		}
+		s.error(s.offset, "component source code must begin with a valid HTML tag")
 	}
 
 	if s.state != stateQuotedAttrVal {
@@ -1393,7 +1331,7 @@ func (s *Scanner) Scan() (loc token.Loc, tok token.Token, lit string) {
 
 scanAgain:
 	if s.ch == eof {
-		tok = token.EOFToken
+		tok = token.EOF
 		return
 	}
 
@@ -1403,26 +1341,36 @@ scanAgain:
 	case stat == stateTagClose:
 		// `>`
 		s.next()
-		tok = token.TagCloseToken
+		tok = token.TAGClose
 		s.state = stateText
 	case stat == stateTagSelfClosing:
 		// consume `/>`
 		s.next()
 		s.next()
-		tok = token.TagSelfClosingToken
+		tok = token.TAGSelfClosing
 		s.state = stateText
-	case stat == stateStartTagOpen:
+	case stat == stateTagOpen:
 		r, _ := s.peekRune()
-		// end tag open
+		// end tag open, something lik </div
 		if r == '/' {
-			s.state = stateEndTagOpen
-			goto scanAgain
+			// consume `<`
+			s.next()
+			// consume `/`
+			s.next()
+			s.state = stateEndTag
+			tok = token.ENDTagOpen
+			// maybe `</🤔`.
+			if !isUnicodeLetter(s.ch) {
+				s.state = stateText
+				s.errorf(s.offset, "invalid character %q in end tag name", s.ch)
+			}
+			break
 		}
-		// start tag open
+		// start tag open, something lik <div
 		if isLetter(r) {
 			// consume `<`
 			s.next()
-			tok = token.StartTagOpenToken
+			tok = token.STARTTagOpen
 			s.state = stateStartTag
 			break
 		}
@@ -1430,44 +1378,33 @@ scanAgain:
 		// todo: reports an error?
 		tok, lit = s.scanText()
 	case stat == stateStartTag:
-		tok = token.TagNameToken
+		tok = token.TAGName
 		lit = s.scanStartTag()
-	case stat == stateEndTagOpen:
-		// consume `</`
-		s.next()
-		s.next()
-		s.state = stateEndTag
-		tok = token.EndTagOpenToken
-		// maybe `</🤔`.
-		if !isUnicodeLetter(s.ch) {
-			s.state = stateText
-			s.errorf(s.offset, "invalid character %q in end tag name", s.ch)
-		}
 	case stat == stateEndTag:
-		tok = token.TagNameToken
+		tok = token.TAGName
 		lit = s.scanEndTag()
 	case stat == stateAttrName: // from scanStartTag(), scanAttrName(), scanAttrValue, scanQuotedAttrValue
 		if s.advance(false) {
 			goto scanAgain
 		}
-		tok = token.AttrNameToken
+		tok = token.ATTRName
 		lit = s.scanAttrName()
 		//println("======", lit)
 	case stat == stateAttrValSep:
 		s.next()
-		tok = token.AttrValSepToken
+		tok = token.ATTRValSep
 		s.switchAttrValState()
 	case stat == stateAttrExpr:
 		tok, lit = s.scanAttrExpr()
 	case stat == stateUnquotedAttrVal:
 		tok, lit = s.scanUnquotedAttrValue()
 	case stat == stateAttrValDelimOpen:
-		tok = token.AttrValDelimToken
+		tok = token.ATTRValDelim
 		lit = string(s.ch)
-		s.delimiter = s.ch
+		s.attrValDelimOpen = s.ch
 		s.next()
 		// class=""
-		if s.ch == s.delimiter {
+		if s.ch == s.attrValDelimOpen {
 			s.state = stateAttrValDelimClose
 			break
 		}
@@ -1477,14 +1414,14 @@ scanAgain:
 			s.state = stateAttrValInterp
 			goto scanAgain
 		}
-		tok = token.AttrValDelimToken
+		tok = token.ATTRValDelim
 		lit = s.scanQuotedAttrVal()
 	case stat == stateAttrValInterp:
 		tok, lit = s.scanAttrValInterp()
 	case stat == stateAttrValDelimClose:
-		tok = token.AttrValDelimToken
+		tok = token.ATTRValDelim
 		lit = string(s.ch)
-		s.delimiter = 0
+		s.attrValDelimOpen = 0
 		s.state = stateAttrName
 		s.next()
 		if s.advance(false) {
@@ -1495,18 +1432,18 @@ scanAgain:
 			r, _ := utf8.DecodeRune(s.src[s.offset:])
 			s.errorf(s.offset, "missing whitespace between attribute name %q and the previous attribute", r)
 		}
-	case stat == stateTextExpr:
-		tok, lit = s.scanTextExpr()
+	case stat == stateCodeBlock:
+		tok, lit = s.scanCodeBlock()
 	default:
 		if s.rawTag != nil {
-			tok = token.TextToken
+			tok = token.TEXT
 			lit = s.scanRawText(s.rawTag)
 			s.state = stateText
 			break
 		}
 		switch ch := s.ch; {
 		case ch == eof:
-			tok = token.EOFToken
+			tok = token.EOF
 		case ch == '<':
 			p, _ := s.peekRune()
 			// doctype or comment: `<!`
@@ -1519,22 +1456,15 @@ scanAgain:
 				tok, lit = s.scanXmlInstruction()
 				break
 			}
-			s.state = stateStartTagOpen
-			if p == '/' {
-				// end tag open token: </
-				s.state = stateEndTagOpen
-			}
+			s.state = stateTagOpen
 			goto scanAgain
 		case ch == '{' || ch == '}':
-			s.state = stateTextExpr
+			s.state = stateCodeBlock
 			goto scanAgain
 		default:
 			// as text
 			tok, lit = s.scanText()
 		}
 	}
-
-	//
-	// 推进状态变更
 	return
 }

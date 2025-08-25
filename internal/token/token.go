@@ -9,128 +9,132 @@ import (
 type Token uint8
 
 const (
-	ErrorToken   Token = iota // Special token: syntax error.
-	EOFToken                  // Special token: end of a file.
-	CommentToken              // <!--x-->
-	DoctypeToken              // <!DOCTYPE x>
-	CDATAToken                // <![CDATA[section]]>
-	TextToken                 // abc
-	SpaceToken                // ' '
+	ILLEGAL Token = iota // Special token: syntax error.
+	EOF                  // Special token: end of a file.
+	COMMENT              // <!--x-->
+	DOCTYPE              // <!DOCTYPE x>
+	CDATA                // <![CDATA[section]]>
+	TEXT                 // abc
+	SPACE                // ' '
 
 	keywordBegin // Start of keyword tokens
-	IfToken      // if
-	ElseToken    // else
-	ForToken     // for
-	InToken      // in
-	TrueToken    // true
-	FalseToken   // false
+	IF           // if
+	ELSE         // else
+	FOR          // for
+	IN           // in
+	TRUE         // true
+	FALSE        // false
 	keywordEnd   // End of keyword tokens
 
-	operatorBegin       // Start of operator tokens
-	LTToken             // <
-	GTToken             // >
-	GTEToken            // >=
-	LTEToken            // <=
-	EQToken             // ==
-	NEQToken            // !=
-	NotToken            // !
-	DotToken            // .
-	DotDotToken         // ..
-	AndToken            // &&
-	OrToken             // ||
-	LPARENToken         // (
-	RPARENToken         // )
-	LBracketToken       // [
-	RBracketToken       // ]
-	COMMAToken          // ,
-	LBRACEToken         // {
-	RBRACEToken         // }
-	SlashToken          // /
-	StartTagOpenToken   // <
-	TagCloseToken       // >
-	TagSelfClosingToken // />
-	EndTagOpenToken     // </
-	AttrValSepToken     // =
-	SUBToken            // -
-	operatorEnd         // End of operator tokens
+	operatorBegin  // Start of operator tokens
+	SUB            // -
+	ADD            // +
+	LT             // <
+	GT             // >
+	GE             // >=
+	LE             // <=
+	EQ             // ==
+	NE             // !=
+	NOT            // !
+	DOT            // .
+	DOTDot         // ..
+	AND            // &&
+	OR             // ||
+	LPAREN         // (
+	RPAREN         // )
+	LBRACKET       // [
+	RBRACKET       // ]
+	COMMA          // ,
+	LBRACE         // {
+	RBRACE         // }
+	SLASH          // /
+	STARTTagOpen   // <
+	TAGClose       // >
+	TAGSelfClosing // />
+	ENDTagOpen     // </
+	ATTRValSep     // =
+	operatorEnd    // End of operator tokens
 
-	TagNameToken      // div
-	AttrNameToken     // class
-	AttrValDelimToken // ' or "
-	AttrValTextToken  // abc
+	TAGName      // div
+	ATTRName     // class
+	ATTRValDelim // ' or "
+	ATTRValText  // abc
 
 	literalBegin // Start of literal tokens
-	IDENTToken   // scoped variable name or component property name
-	INTToken     // 123
-	FloatToken   // 123.45
-	IMAGToken    // 123.4i
-	StringToken  // "abc"
-	CHARToken    // 'c'
-	FMTToken     // YY-MM-DD H:M:S
+	IDENT        // scoped variable name or component property name
+	INT          // 123
+	FLOAT        // 123.45
+	STRING       // "abc\n" or `abc\n`
+	CHAR         // 'c'
+	FMT          // %YY-MM-DD H:M:S or %.3f
+	CONDText     // :dark
 	literalEnd   // End of literal tokens
 )
 
 var tokens = [...]string{
-	ErrorToken:   "error",
-	EOFToken:     "eof",
-	DoctypeToken: "doctype",
-	CDATAToken:   "cdata",
-	CommentToken: "comment",
-	TextToken:    "text",
+	ILLEGAL: "error",
+	EOF:     "eof",
+	DOCTYPE: "doctype",
+	CDATA:   "cdata",
+	COMMENT: "comment",
+	TEXT:    "text",
 
-	StartTagOpenToken:   "<", // <
-	TagCloseToken:       ">", // >
-	TagSelfClosingToken: "/>",
-	EndTagOpenToken:     "</",
-	TagNameToken:        "tagName",
-	AttrNameToken:       "attributeName",
-	AttrValSepToken:     "=",
-	AttrValDelimToken:   "attributeValueDelimiter",
-	AttrValTextToken:    "attributeValueText",
-	SpaceToken:          "space",
+	STARTTagOpen:   "<", // <
+	TAGClose:       ">", // >
+	TAGSelfClosing: "/>",
+	ENDTagOpen:     "</",
+	TAGName:        "tagName",
+	ATTRName:       "attributeName",
+	ATTRValSep:     "=",
+	ATTRValDelim:   "attributeValueDelimiter",
+	ATTRValText:    "attributeValueText",
+	SPACE:          "space",
 
-	IfToken:    "if",
-	ElseToken:  "else",
-	ForToken:   "for",
-	InToken:    "in",
-	TrueToken:  "true",
-	FalseToken: "false",
+	IF:    "if",
+	ELSE:  "else",
+	FOR:   "for",
+	IN:    "in",
+	TRUE:  "true",
+	FALSE: "false",
 
-	LTToken:       "<",
-	GTToken:       ">",
-	GTEToken:      ">=",
-	LTEToken:      "<=",
-	EQToken:       "==",
-	NEQToken:      "!=",
-	NotToken:      "!",
-	DotToken:      ".",
-	DotDotToken:   "..",
-	AndToken:      "&&",
-	OrToken:       "||",
-	LPARENToken:   "(",
-	RPARENToken:   ")",
-	LBracketToken: "[",
-	RBracketToken: "]",
-	COMMAToken:    ",",
-	LBRACEToken:   "{",
-	RBRACEToken:   "}",
-	SlashToken:    "/",
-	SUBToken:      "-",
+	LT:       "<",
+	GT:       ">",
+	GE:       ">=",
+	LE:       "<=",
+	EQ:       "==",
+	NE:       "!=",
+	NOT:      "!",
+	DOT:      ".",
+	DOTDot:   "..",
+	AND:      "&&",
+	OR:       "||",
+	LPAREN:   "(",
+	RPAREN:   ")",
+	LBRACKET: "[",
+	RBRACKET: "]",
+	COMMA:    ",",
+	LBRACE:   "{",
+	RBRACE:   "}",
+	SLASH:    "/",
+	SUB:      "-",
+	ADD:      "+",
 
-	IDENTToken:  "identifier", // macro variable name or component property name
-	INTToken:    "integer",    // 123
-	FloatToken:  "float",      // 123.45
-	StringToken: "string",     // "abc"
-	FMTToken:    "formatting",
+	IDENT:    "identifier", // macro variable name or component property name
+	INT:      "integer",    // 123
+	FLOAT:    "float",      // 123.45
+	STRING:   "string",     // "abc"
+	CHAR:     "character",
+	FMT:      "format",
+	CONDText: "condText",
 }
 
 var keywords = map[string]Token{
-	"if":    IfToken,
-	"else":  ElseToken,
-	"for":   ForToken,
-	"in":    InToken,
-	"true":  TrueToken,
-	"false": FalseToken,
+	"if":    IF,
+	"else":  ELSE,
+	"for":   FOR,
+	"in":    IN,
+	"true":  TRUE,
+	"false": FALSE,
 }
 
 func (tok Token) String() string {
@@ -161,7 +165,7 @@ func Lookup(ident string) Token {
 	if tok, isKeyword := keywords[ident]; isKeyword {
 		return tok
 	}
-	return IDENTToken
+	return IDENT
 }
 
 func IsAsciiLetter(ch rune) bool {

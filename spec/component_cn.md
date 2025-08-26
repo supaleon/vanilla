@@ -2,35 +2,50 @@
 
 ## 核心理念
 
-`Vanilla` 使用 `HTML`、`CSS` 和 `Javascript` 来构建 `UI`，并在 `HTML` 基础上构建了组件系统。
+`Vanilla` 基于 `HTML`、`CSS`、`JavaScript` 构建 `UI`，并在此之上提供组件系统。
 
-不同于其他框架，`Vanilla` 没有引入复杂的模板指令和语法糖，而是尽量保持组件轻量化。
+`Vanilla` 推崇组件简洁与轻量化，复杂的数据逻辑应放在 Go 等后端，而不是模板中，从而提升组件的可读性与可维护性。
 
-`Vanilla` 推崇将复杂的数据处理逻辑放进 Go 等后端处理程序中，而不是组件模版里，以便让组件更具可读和可维护性。
-
-如果你需要一个具有复杂模板指令和语法糖的框架，`Vanilla` 并不适合你。`Vanilla` 的哲学是：**代码是写给人看的，只是恰好能在机器上运行。**
+如果你需要功能众多的模板指令和语法糖，`Vanilla` 并不适合你。`Vanilla` 的哲学是：**代码是写给人看的，只是恰好能在机器上运行。
+**
 
 ## 组件基础
 
-每个 Vanilla 组件都是一个合法的 HTML 文件。
+`Vanilla` 组件是 `Vanilla` 项目的基础构建模块。它们是纯 `HTML`、无需客户端运行时的模板组件。
 
 ### 文件定义
 
-Vanilla 组件文件必须存放在项目根目录下的 `pages/` 文件夹内，并且使用 `PascalCase（大驼峰）`命名，例如：`Button.html`、
-`SideBar.html`。
-否则 `Vanilla Compiler` 和 `Vanilla IDE Extension` 会忽略这些文件。
+`Vanilla` 组件文件是标准的 `HTML` 文件，并使用 `.html` 的文件名后缀。
+
+`Vanilla` 组件文件须遵循以下规则：
+
+1. **目录结构**：组件文件必须存放在项目根目录下的 `pages/` 文件夹内。
+2. **文件命名**：组件文件必须使用 `PascalCase（大驼峰）`命名，例如：`Button.html`、`SideBar.html`。
+
+**示例：**
+
+```
+pages/
+    Layout.html
+    Index.html
+    blog/
+        Index.html
+        Post.html
+        route.go
+```
 
 ### 内容布局
 
-每个组件至少需要包含一个顶层 `Template` 代码块，可选择地包含一个 `Script` 顶层代码块。除 `Script` 和 `Template`
-代码块之外，组件文件不允许包含其他任何顶层标签或注释。另外组件内容还需要满足以下规范：
+`Vanilla` 组件由一个可选的 `<script>` 块和一个必需的模板内容构成。其布局必须遵循以下规则：
 
-1. 组件内容必须以一个有效的 `Script` 或 `Template` 代码块开始。
-2. `Script` 代码块由 `<script> `包裹，`Script` 代码块内只接受具有严格模式的 `ES Module` 语法的代码。
-3. `Template`内容必须由块级 HTML 元素包裹，这个元素可以是 `<div>` 这样的块级标签，也可以是 `<metadata>` 标签。
-4. 除顶层 `Script` 代码块 外，不允许使用 `<script>` 内联脚本代码。但允许使用类似 `<script src="./jquery.js"></script>`
-   形式外联外部脚本代码。
-5. 内联`<style>`代码，只能放在`<head>`或`<metadata>`标签(框架自定义的元数据容器标签)中。
+1. **文件结构**: 组件最多包含一个顶层的 `<script>` 块和一个顶层的模板。除此之外，不允许任何其他顶层标签或注释。
+2. **块顺序**: 如果 `<script>` 块存在，它必须是文件中的第一个元素。模板内容必须紧随其后。
+3. **Script 块**: `<script>` 块内必须是严格模式的 ES Module 代码。
+4. **模板根元素**: 模板内容本身必须被**单个根标签**包裹。这个标签可以是标准的 HTML 标签（如 `<div>`, `<html>`）或
+   `<metadata>` 标签。
+5. **禁止内联脚本**: 除顶层的 `<script>` 块外，模板中不允许出现其他 `<script>` 标签，但通过 `src` 属性外联的脚本除外 (
+   `<script src="..."></script>`)。
+6. **内联样式位置**: `<style>` 标签只能被放置在 `<head>` 或 `<metadata>` 标签内部。
 
 **有效的组件示例：**
 
@@ -63,8 +78,9 @@ Vanilla 组件文件必须存放在项目根目录下的 `pages/` 文件夹内�
 </script>
 
 <html>
+<!--Template code block-->
+<!-- ✅ 有效！<html> 标签可以作为 Vanilla 组件 Template 代码块。 -->
 <head>
-    <!--Template code block-->
     <style>
         body {
             background: black;
@@ -83,7 +99,7 @@ The answer is 42!
 
 <div>
     <!--Template code block-->
-    <!-- ✅ 有效！Vanilla 允许组件没有顶层 script 代码块。 -->
+    <!-- ✅ 有效！Vanilla 组件允许没有顶层 script 代码块。 -->
     <span>Understand the universe!</span>
 </div>
 ```
@@ -94,7 +110,7 @@ The answer is 42!
 
 <metadata>
     <!--Template code block-->
-    <!-- ✅ 有效！Vanilla 允许使用 metadata 标签代替顶层 Template 代码块。 -->
+    <!-- ✅ 有效！Vanilla 组件允许使用 metadata 标签代替顶层 Template 代码块。 -->
     <title>My First Vanilla Page</title>
     <meta charset="UTF-8"/>
 </metadata>
@@ -102,7 +118,14 @@ The answer is 42!
 
 **无效的组件示例：**
 
-~~InvalidExample01.html(多个顶层 Script)~~
+```HTML
+<!--comment-->
+<!-- ❌ 无效！Vanilla 组件必须以一个有效的Script或Template开始。 -->
+<script>
+    console.log("hello world 01")
+</script>
+<div>template code block</div>
+```
 
 ```HTML
 <!-- ❌ 无效！Vanilla 不支持多个顶层 script 代码块。 -->
@@ -117,60 +140,43 @@ The answer is 42!
 <div>template code block</div>
 ```
 
-~~InvalidExample02.html~~
-
 ```HTML
 <!-- ❌ 无效！Vanilla 不支持多个顶层 template 代码块。 -->
 <div>template code block 01</div>
 <div>template code block 02</div>
 ```
 
-~~InvalidExample03.html~~
-
 ```HTML
-<!--comment-->
-<!-- ❌ 无效！Vanilla 组件源码必须以一个有效的Script或Template开始。 -->
-<script>
-    console.log("hello world 01")
-</script>
-<div>template code block</div>
-```
-
-~~InvalidExample04.html~~
-
-```HTML
-
-<script>
-    console.log("hello world 01")
-</script>
 <!-- ❌ 无效！Vanilla 源文件必须包含一个顶层 template 代码块。 -->
+<script>
+    console.log("hello world 01")
+</script>
 ```
 
 ### 模块导入
 
-`Vanilla` 的 `<script>` 代码块支持标准的 `ES Module import` 语法来导入 `Go 类型`、JS 模块、组件或 `CSS` 样式表。
+`Vanilla` 的 `<script>` 代码块支持标准的 `ES Module import` 语法来导入 `Go` 类型、`JS` 模块、组件或 `CSS` 样式表。
 
 #### 类型导入
 
 Vanilla 支持直接从 `.go` 源文件中导入 Go 的复合类型，以便在 `prop()` 宏中使用。
 
-**语法**: `import { TypeName1, TypeName2 } from "./path/to/your/go/file.go"`
+**语法**: `import { TypeName1, TypeName2 } from "./path-to-your-go-file.go"`
 
-**限制与规范**:
+**类型导入遵循以下限制和规范：**
 
-类型导入遵循以下严格的限制：
-
-1.  **支持的类型**: 目前只支持导入 `struct`, `map`, 和 `slice` 三种复合类型。
-    *   对于 `map` 类型，其键（key）必须是 `string`。
-2.  **导出性**: 导入的类型名称必须以大写字母开头，即在 Go 语言中是“导出（exported）”的。
-3.  **不支持的特性**: 不支持导入泛型（generic types）或类型别名（type aliases）。
-4.  **实例化规则**:
-    *   在 `prop()` 宏中使用导入的类型时，必须以函数调用的形式 `TypeName()` 来进行实例化。
-    *   实例化时不支持传递参数或使用字面量为字段赋值。例如，`prop(User({Name: "test"}))` 是无效的。
+1. **支持的类型**: 目前只支持导入 `struct`, `map`, 和 `slice` 三种复合类型。
+    * 对于 `map` 类型，其键（key）必须是 `string`。
+2. **导出性**: 导入的类型名称必须以大写字母开头，即在 Go 语言中是“导出（exported）”的。
+3. **不支持的特性**: 不支持导入泛型（generic types）或类型别名（type aliases）。
+4. **实例化规则**:
+    * 在 `prop()` 宏中使用导入的类型时，必须以函数调用的形式 `TypeName()` 来进行实例化。
+    * 实例化时不支持传递参数或使用字面量为字段赋值。例如，`prop(User({Name: "test"}))` 是无效的。
 
 **示例**:
 
 假设在 `account/user.go` 中定义了一个 `User` 结构体：
+
 ```go
 // account/user.go
 
@@ -180,11 +186,12 @@ type User struct {
 	Name string
 	Age  int
 }
-
 ```
 
-然后你可以在组件中导入并使用它，下面的用法是**正确**的：
+然后可以在组件中导入并使用它：
+
 ```html
+
 <script>
     import { User } from "../account/user.go"
 
@@ -202,12 +209,17 @@ type User struct {
 
 `Vanilla` 支持两种导入方式导入组件：
 
-**Bare Import (用于副作用)**：`import "./Item.html"`。也称`effect import`。
+**Bare Import (用于副作用)**：
+`import "./Item.html"`。也称`effect import`。
 
-**默认导入**（default import）：`import Card from "./Card.html"`。默认导入用于获取组件的引用，以便在模板中作为标签使用。当需要时，也可以用它来重命名组件以避免冲突（例如
+**默认导入**（default import）：`import Card from "./Card.html"`。
+默认导入用于获取组件的引用，以便在模板中作为标签使用。当需要时，也可以用它来重命名组件以避免冲突（例如
 `import MyCard from "./Card.html"`）。
 
-需要注意的是，`Vanilla` 不支持动态导入组件，例如`import("./Child.html")`，这会引发一个编译错误。
+**规范与限制：**
+
+1. `Vanilla` 导入的组件文件必须大驼峰名，不支持其它命名格式，例如`import "./child.html"`，这会引发一个编译错误。
+2. `Vanilla` 不支持动态导入组件，例如`import("./Child.html")`，这会引发一个编译错误。
 
 **有效的导入示例：**
 
@@ -252,7 +264,7 @@ type User struct {
 #### 样式表导入
 
 Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `import "./style.css"`。
-⚠️不过需要注意，通过 import 导入的 CSS 样式表会作用于全局，不支持组件级别的作用域隔离。
+**⚠️注意事项：** 通过 import 导入的 CSS 样式表会作用于全局，不支持组件级别的作用域隔离。
 
 **示例：**
 
@@ -267,8 +279,8 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 
 ## 组件属性 (Props)
 
-在 Vanilla 中，组件的属性（Prop）是一种在编译时处理的特殊变量。
-属性使用一个特殊的 `prop` 宏来声明，它会在编译期间被展开和 `Tree-shaking` 擦除，这与标准的运行时变量不同。
+`Vanilla` 组件属性（Prop）是一种在编译时处理的特殊变量。 组件属性使用一个特殊的 `prop` 宏来声明，它会在编译期间被展开，并使用
+`Tree-shaking` 擦除。
 
 ### 属性声明
 
@@ -278,31 +290,33 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 
 `prop()` 的参数定义了属性的**类型**和**默认值**。它可以接受两种类型的参数：
 
-1.  **Go 类型实例化**: 通过 `TypeName()` 的形式传入一个导入的 Go 类型，用于声明一个具有复杂结构的属性。其默认值是该类型在 Go 中的零值。
-2.  **JavaScript 字面量**: 直接传入一个 JS 字面量。编译器会根据该字面量推断出对应的 Go 类型和默认值。
+1. **Go 类型实例化**: 通过 `TypeName()` 的形式传入一个导入的 Go 类型，用于声明一个具有复杂结构的属性。其默认值是该类型在
+   Go 中的零值。
+2. **JavaScript 字面量**: 直接传入一个 JS 字面量。编译器会根据该字面量推断出对应的 Go 类型和默认值。
 
 **JS 字面量与 Go 类型的映射关系:**
 
-| `prop()` 中的 JS 字面量参数       | 推断出的 Go 类型 |
-|:---------------------------| :--- |
-| `prop("some string")`      | `string` |
-| `prop(123)`                | `int` |
-| `prop(1.23)`               | `float64` |
-| `prop(true)`               | `bool` |
-| `prop([])`                 | `[]any` (Slice) |
-| `prop({})`                 | `map[string]any` (Map) |
+| `prop()` 中的 JS 字面量参数  | 推断出的 Go 类型             |
+|:----------------------|:-----------------------|
+| `prop("some string")` | `string`               |
+| `prop(123)`           | `int`                  |
+| `prop(1.23)`          | `float64`              |
+| `prop(true)`          | `bool`                 |
+| `prop([])`            | `[]any` (Slice)        |
+| `prop({})`            | `map[string]any` (Map) |
 
 #### 声明规范
 
-1.  **必须使用 `const`**: 属性声明必须使用 `const` 关键字，以强调其在组件内部的只读特性。
-2.  **禁止解构**: 不支持使用解构语法来声明属性。
-3.  **禁止 `null` 和 `undefined`**: 不允许使用 `prop(null)` 或 `prop(undefined)` 来初始化属性。
+1. **必须使用 `const`**: 属性声明必须使用 `const` 关键字（代表属性在组件内部是只读的）。
+2. **禁止解构**: 不支持使用解构语法来声明属性。
+3. **禁止 `null` 和 `undefined`**: 不允许使用 `prop(null)` 或 `prop(undefined)` 来初始化属性。
 
-*注意：对于 JS 的数组和对象字面量，目前仅支持使用空字面量 `[]` 和 `{}` 来获取默认值，不支持在其中预设值。*
+*注意：对于 `JS` 的数组和对象字面量，目前仅支持使用空字面量 `[]` 和 `{}` 来获取默认值，不支持在其中预设值。*
 
 **有效的示例：**
 
 ```HTML
+
 <script>
     import { User } from "./user.go"
 
@@ -311,7 +325,6 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
     const user = prop(User());
 
     // --- 2. 使用 JS 字面量 (类型将被自动推断) ---
-
     // String -> string
     const theme = prop("dark");
 
@@ -324,12 +337,11 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 
     // 暂时仅支持空数组字面量
     // Array literal -> []any
-    // 默认值是 []
     const emptyTags = prop([]);
+    // 暂时仅支持空对象字面量
     // Object literal -> map[string]any
-    // 默认值是 {}
     const emptyConfig = prop({});
-    
+
 </script>
 ```
 
@@ -340,7 +352,7 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 <script>
     import { User } from "./user.go"
 
-    // ❌ 无效！Vanilla 不支持 let 关键字声明。
+    // ❌ 无效！Vanilla 不支持 let 关键字声明属性。
     let user = prop(User())
     // ❌ 无效！Vanilla 不支持解构语法。
     const {var1, var2, ...rest} = prop({})
@@ -348,10 +360,16 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
     const var1 = prop(null)
     // ❌ 无效！Vanilla 不支持使用 undefined 初始化属性。
     const var2 = prop(undefined)
-    // ❌ 无效！Vanilla 暂时不支持这种复合类型
-    const tags = prop(["hello", "world"]);
-    // ❌ 无效！Vanilla 暂时不支持这种复合类型
-    const config = prop({ a: 1, b: "2" });
+    // ❌ 无效！Vanilla 暂时不支持这种复合的字面量类型
+    const tags = prop(["hello", "world"])
+    // ❌ 无效！Vanilla 暂时不支持这种复合的字面量类型
+    const config = prop({a: 1, b: "2"})
+    // ❌ 无效！Vanilla 不支持非字面量类型
+    const arr = prop(MyArray)
+
+    function MyArray() {
+        return []
+    }
 </script>
 ```
 
@@ -388,7 +406,7 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 <script>
     import { Profile } from "./profile.go"
     import "./UserCard.html"
-    
+
     const profile = prop(Profile())
     const theme = prop("dark")
 </script>
@@ -448,14 +466,14 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 * **索引访问 (Index Access):** 用于访问数组成员，例如 `{user.tags[0]}`。
 * **布尔“非”运算符 (Boolean NOT Operator):** 用于对布尔值取反，例如 `{!user.active}`。
 
-#### 不支持的语法与原因
+#### 限制与规范
 
-为了确保模板解析的健壮性和明确性，存在以下限制：
+为确保模板解析的健壮性和明确性，属性访问存在以下限制：
 
 * **不支持方括号表示法 (Bracket Notation):** 完全禁止 `{user["myKey"]}` 这样的语法。
     * **原因**: HTML 属性值本身常用引号 (`"` 或 `'`) 包裹，在插值中再使用引号会引起解析冲突和歧义。此外，Go 语言中单引号用于表示
       `rune` 字符，这也会导致语法的不一致性。
-* **不支持复杂的表达式:** 模板插值仅限于直接的属性访问和简单的布尔 `!` 运算，不支持算术运算或其他复杂的表达式。
+* **不支持复杂的表达式:** 模板插值仅限于直接的属性访问和简单的布尔 `!` 运算以及函数调用，不支持算术运算或其他复杂的表达式。
 
 **有效的示例：**
 
@@ -469,7 +487,9 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 
 <div>
     <span>name: {user.name}</span>
+    <!--✅ 有效！Vanilla 支持在属性访问表达式中使用函数。-->
     <span>{empty(user.tags): 未设置标签}</span>
+    <!--✅ 有效！Vanilla 支持在属性访问表达式中使用布尔运算。-->
     <button disabled={!user.active}></button>
 </div>
 ```
@@ -488,15 +508,24 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 <div title="{user[" name"]}">
 <!--❌ 无效！Vanilla 不支持方括号表示法访问。-->
 <button disabled={!user['active']}></button>
+<!--❌ 无效！Vanilla 不支持在属性访问中使用逻辑和比较运算符。-->
+<button disabled={!user.active && !user.IsDeleted}></button>
 </div>
 ```
 
 ## 模板语法
 
+模板语法是 `Vanilla` 组件中一组辅助渲染的流程控制指令语法。
+
 ### 条件渲染
 
-`Vanilla` 组件中支持使用 `if` 表达式，但具有以下限制：
+Vanilla 提供了三种方式来根据条件渲染模板内容。
 
+#### If-Else 块
+
+这是最主要的条件渲染方式，用于控制整个 HTML 块的显示或隐藏。
+
+**限制与规范**:
 1. `if` 语句内仅允许逻辑表达式（||和&&）与比较表达式(>、<、<=、>=)，例如：`{if !user.disabled && user.likes > 0}`。
 2. `if` 语句可以有 `else` 分支，但不支持 `else if`。
 3. `if` 语句中可以使用 Go 的 `String` 类型（例如：`{if user.code == "NICE"}`）。但不支持使用反引号(``)的 `Raw String`
@@ -505,20 +534,25 @@ Vanilla 支持在组件中通过 import 语句导入 CSS 样式表。 如 `impor
 4. 逻辑和比较运算符的两侧必须至少包含一个空格（例如，应使用 `user.likes > 0` 而不是 `user.likes>0`）。这是为了防止与 HTML
    标签产生解析冲突（例如，`1<a` 可能会被误解为 `<a>` 标签的开始）。
 
-**示例：**
-
+**示例**:
+组件代码:
 ```html
-
+<script>
+    import { User } from "./user.go"
+    const user = prop(User());
+    // 假设渲染时传入的 user 值为:
+    // { name: "Alice", isLoggedIn: true, messages: ["msg1"] }
+</script>
 <div>
-    {if !user.disabled}
-    <span>{user.name}</span>
+    {if user.isLoggedIn && len(user.messages) > 0}
+        <p>欢迎, {user.name}!</p>
     {else}
-    <button>Sign In</button>
+        <p>请先 <a href="/login">登录</a></p>
     {/if}
 </div>
 ```
 
-#### 布尔属性表达式
+#### 布尔属性
 
 HTML 中的布尔属性（如 `disabled`, `checked`, `selected`）比较特殊，它们的特点是“存在即为 true”。
 
@@ -553,7 +587,7 @@ Vanilla 提供了一种简洁的语法来控制这些属性。在为这类属性
 </div>
 ```
 
-#### 条件文本表达式
+#### 条件文本 (三元简写)
 
 这是一种 `if/then` 的简写形式，特别适合用于动态渲染 CSS 类名。
 
@@ -613,10 +647,10 @@ Vanilla 提供了一种简洁的语法来控制这些属性。在为这类属性
 * `index`: 集合中当前元素的索引或键。
 * `value`: (可选) 集合中当前元素的值。
 
-
 **示例**:
 
 组件内容：
+
 ```html
 
 <script>
@@ -653,6 +687,7 @@ Vanilla 提供了一种简洁的语法来控制这些属性。在为这类属性
 **示例**:
 
 组件内容:
+
 ```html
 
 <div>
@@ -689,16 +724,18 @@ Vanilla 提供了一种简洁的语法来控制这些属性。在为这类属性
 
 * **时间 (Time)**: 时间格式化支持两种模式，具体取决于 `prop` 的数据类型：
     1. **Go 标准布局**: 如果 `variable` 是一个 `time.Time` 对象，`format_specifier` 遵循 Go `time` 包的布局字符串。
-    2. **便捷写法**: 如果 `variable` 是一个 Unix 时间戳（`int64`），`format_specifier` 可以使用更简洁的写法，如 `YY/MM/DD H:M:S`。
+    2. **便捷写法**: 如果 `variable` 是一个 Unix 时间戳（`int64`），`format_specifier` 可以使用更简洁的写法，如
+       `YY/MM/DD H:M:S`。
 
 **示例**:
 
 组件内容:
+
 ```html
 
 <script>
     import { Sale } from "./sale.go"
-    
+
     const sale = prop(Sale())
     // 假设 sale = {
     //      price: 12.345,
@@ -748,12 +785,15 @@ Vanilla 在模板中提供了一组内置函数，用于处理常见的格式化
   **警告**：⚠️仅在完全信任内容来源时使用，否则会带来安全风险。
 
   **上下文安全特性**:
-  为了防止通过 `href` 注入恶意脚本，当 `unsafe` **直接用在 `<a>` 标签的 `href` 属性**中时，它会表现出特殊的安全行为：它依然会移除危险的 URL 协议（如 `javascript:`），但允许 `http`, `https` 等安全协议通过。在其他任何地方，它都只是纯粹地禁止转义。
+  为了防止通过 `href` 注入恶意脚本，当 `unsafe` **直接用在 `<a>` 标签的 `href` 属性**中时，它会表现出特殊的安全行为：它依然会移除危险的
+  URL 协议（如 `javascript:`），但允许 `http`, `https` 等安全协议通过。在其他任何地方，它都只是纯粹地禁止转义。
 
 **`unsafe` 示例**:
 
 组件内容：
+
 ```html
+
 <script>
     const links = prop({
         safeUrl: "https://example.com",
@@ -770,7 +810,9 @@ Vanilla 在模板中提供了一组内置函数，用于处理常见的格式化
 <!-- 在非 href 的地方，完全不转义 -->
 <div>{unsafe(links.rawHtml)}</div>
 ```
+
 渲染结果：
+
 ```html
 <a href="">Malicious Link</a>
 <a href="https://example.com">Safe Link</a>

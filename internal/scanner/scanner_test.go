@@ -282,3 +282,324 @@ func TestNumbers(t *testing.T) {
 		}
 	}
 }
+
+func TestComments(t *testing.T) {
+	tests := []struct {
+		src  string
+		toks []token.Token
+		lits []string
+		err  string
+	}{
+		{
+			src:  `<!-- comment -->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!-- comment -->`},
+		},
+		{
+			src: `<!-- multi-line
+comment -->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!-- multi-line
+comment -->`},
+		},
+		{
+			src:  `<!-- not closed`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!-- not closed`},
+		},
+		{
+			src:  `<div><!-- comment --></div>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose, token.COMMENT, token.ENDTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "div", ">", "<!-- comment -->", "</", "div", ">"},
+		},
+		{
+			src:  `<!- not a comment ->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!- not a comment ->`},
+			err:  "incorrectly opened comment",
+		},
+		{
+			src:  `<!DOCTYPE html>`,
+			toks: []token.Token{token.DOCTYPE},
+			lits: []string{`<!DOCTYPE html>`},
+			err:  "component source code cannot contain HTML Doctype",
+		},
+		{
+			src:  `<?xml version="1.0"?>`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<?xml version="1.0"?>`},
+			err:  "component source code cannot contain XML processing instructions",
+		},
+		{
+			src:  `<![CDATA[section]]>`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<![CDATA[section]]>`},
+			err:  "component source code cannot contain XML CDATA",
+		},
+		{
+			src:  `<!-- <!-- nested --> -->`,
+			toks: []token.Token{token.COMMENT, token.TEXT},
+			lits: []string{`<!-- <!-- nested -->`, `-->`},
+		},
+		{
+			src:  `<!-- comment --->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!-- comment --->`},
+		},
+		{
+			src:  `<!--comment-->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!--comment-->`},
+		},
+		{
+			src:  `<!-- < > & ' " -->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!-- < > & ' " -->`},
+		},
+		{
+			src:  `<!------>`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!------>`},
+		},
+		{
+			src:  `<!-- a -- b -->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!-- a -- b -->`},
+		},
+		{
+			src:  `<div><!--comment--></div>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose, token.COMMENT, token.ENDTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "div", ">", `<!--comment-->`, "</", "div", ">"},
+		},
+		{
+			src:  `<!--c1--> <!--c2-->`,
+			toks: []token.Token{token.COMMENT, token.COMMENT},
+			lits: []string{`<!--c1-->`, `<!--c2-->`},
+		},
+		{
+			src:  `<!--> comment-->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!--> comment-->`},
+		},
+		{
+			src:  `<!-- A---B -->`,
+			toks: []token.Token{token.COMMENT},
+			lits: []string{`<!-- A---B -->`},
+		},
+	}
+
+	for i, test := range tests {
+		var errs []string
+		s := New(fset.AddFile("", fset.Base(), len(test.src)), []byte(test.src), func(_ token.Position, msg string) {
+			errs = append(errs, msg)
+		})
+
+		for j, wantTok := range test.toks {
+			_, tok, lit := s.Scan()
+
+			if tok != wantTok {
+				t.Errorf("[%d] %q: got token %s; want %s", i, test.src, tok, wantTok)
+				break
+			}
+
+			wantLit := test.lits[j]
+			switch tok {
+			case token.STARTTagOpen:
+				lit = "<"
+			case token.ENDTagOpen:
+				lit = "</"
+			case token.TAGClose:
+				lit = ">"
+			}
+
+			if lit != wantLit {
+				t.Errorf("[%d] %q: got literal %q; want %q", i, test.src, lit, wantLit)
+			}
+		}
+
+		_, tok, _ := s.Scan()
+		if tok != token.EOF {
+			t.Errorf("[%d] %q: got %s; want EOF", i, test.src, tok)
+		}
+
+		if test.err != "" {
+			if len(errs) == 0 {
+				t.Errorf("[%d] %q: expected error %q, but got none", i, test.src, test.err)
+			} else if errs[0] != test.err {
+				t.Errorf("[%d] %q: expected error %q, but got %q", i, test.src, errs[0], test.err)
+			}
+		} else if len(errs) > 0 {
+			t.Errorf("[%d] %q: unexpected error: %q", i, test.src, errs[0])
+		}
+	}
+}
+
+func TestTags(t *testing.T) {
+	tests := []struct {
+		src  string
+		toks []token.Token
+		lits []string
+		err  string
+	}{
+		{
+			src:  `<div>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "div", ">"},
+		},
+		{
+			src:  `</div>`,
+			toks: []token.Token{token.ENDTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"</", "div", ">"},
+		},
+		{
+			src:  `<div/>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGSelfClosing},
+			lits: []string{"<", "div", "/>"},
+		},
+		{
+			src:  `<my-tag>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "my-tag", ">"},
+		},
+		{
+			src:  `</div >`,
+			toks: []token.Token{token.ENDTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"</", "div", ">"},
+		},
+		{
+			src:  `<DiV>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "DiV", ">"},
+		},
+		{
+			src:  `<div`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName},
+			lits: []string{"<", "div"},
+		},
+		{
+			src:  `</div`,
+			toks: []token.Token{token.ENDTagOpen, token.TAGName},
+			lits: []string{"</", "div"},
+		},
+		{
+			src:  `<div$>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "div$", ">"},
+			err:  "invalid character '$' in start tag name",
+		},
+		{
+			src:  `</div$>`,
+			toks: []token.Token{token.ENDTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"</", "div$", ">"},
+			err:  "invalid character '$' in end tag name",
+		},
+		{
+			src:  `</div class='foo'>`,
+			toks: []token.Token{token.ENDTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"</", "div", ">"},
+		},
+		{
+			src:  `<1div>`,
+			toks: []token.Token{token.TEXT},
+			lits: []string{"<1div>"},
+		},
+		{
+			src:  `</1div>`,
+			toks: []token.Token{token.ENDTagOpen, token.TEXT},
+			lits: []string{"</", "1div>"},
+			err:  "invalid character '1' in end tag name",
+		},
+		{
+			src:  `<ü>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "ü", ">"},
+		},
+		{
+			src:  `<my_tag>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "my_tag", ">"},
+		},
+		{
+			src:  `<my--tag>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "my--tag", ">"},
+		},
+		{
+			src:  `<div / >`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.ATTRName, token.TAGClose},
+			lits: []string{"<", "div", "/", ">"},
+			err:  "invalid character '/' in attribute name",
+		},
+		{
+			src:  `<div{foo}>`,
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"<", "div{foo}", ">"},
+			err:  "invalid character '{' in start tag name",
+		},
+		{
+			src:  `</>`,
+			toks: []token.Token{token.ENDTagOpen, token.TEXT},
+			lits: []string{"</", ">"},
+			err:  "invalid character '>' in end tag name",
+		},
+		{
+			src:  `<>`,
+			toks: []token.Token{token.TEXT},
+			lits: []string{"<>"},
+		},
+		{
+			src:  `<😀>`,
+			toks: []token.Token{token.TEXT},
+			lits: []string{"<😀>"},
+		},
+	}
+
+	for i, test := range tests {
+		var errs []string
+		s := New(fset.AddFile("", fset.Base(), len(test.src)), []byte(test.src), func(_ token.Position, msg string) {
+			errs = append(errs, msg)
+		})
+
+		s.debug = true
+
+		for j, wantTok := range test.toks {
+			_, tok, lit := s.Scan()
+
+			if tok != wantTok {
+				t.Errorf("[%d] %q: got token %s; want %s", i, test.src, tok, wantTok)
+				break
+			}
+
+			wantLit := test.lits[j]
+			switch tok {
+			case token.STARTTagOpen:
+				lit = "<"
+			case token.ENDTagOpen:
+				lit = "</"
+			case token.TAGClose:
+				lit = ">"
+			case token.TAGSelfClosing:
+				lit = "/>"
+			}
+
+			if lit != wantLit {
+				t.Errorf("[%d] %q: got literal %q; want %q", i, test.src, lit, wantLit)
+			}
+		}
+
+		_, tok, _ := s.Scan()
+		if tok != token.EOF {
+			t.Errorf("[%d] %q: got %s; want EOF", i, test.src, tok)
+		}
+
+		if test.err != "" {
+			if len(errs) == 0 {
+				t.Errorf("[%d] %q: expected error %q, but got none", i, test.src, test.err)
+			} else if errs[0] != test.err {
+				t.Errorf("[%d] %q: expected error %q, but got %q", i, test.src, test.err, errs[0])
+			}
+		} else if len(errs) > 0 {
+			t.Errorf("[%d] %q: unexpected error: %q", i, test.src, errs[0])
+		}
+	}
+}

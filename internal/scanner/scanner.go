@@ -67,6 +67,8 @@ type Scanner struct {
 	errorHandler ErrorHandler // error reporting; or nil
 	// public state - ok to modify
 	errorCount int // number of errors encountered
+
+	debug bool
 }
 
 const (
@@ -662,15 +664,15 @@ func (s *Scanner) scanXmlInstruction() (tok token.Token, lit string) {
 		}
 	}
 	lit = string(s.src[off:s.offset])
-	s.error(off, "component source cannot contain XML processing instructions")
+	s.error(off, "component source code cannot contain XML processing instructions")
 	return
 }
 
 var doctype = []byte("DOCTYPE")
 
-// scanDoctype treats all characters starting with `<!` as comments,
+// scanComment treats all characters starting with `<!` as comments,
 // except those starting with `<!DOCTYPE`
-func (s *Scanner) scanDoctype() (tok token.Token, lit string) {
+func (s *Scanner) scanComment() (tok token.Token, lit string) {
 	tok = token.COMMENT
 	off := s.offset
 	err := "incorrectly opened comment"
@@ -689,13 +691,13 @@ func (s *Scanner) scanDoctype() (tok token.Token, lit string) {
 		}
 	case r == '[':
 		// <![CDATA[section]]>
-		err = "component source cannot contain XML CDATA"
+		err = "component source code cannot contain XML CDATA"
 	case lower(r) == 'd':
 		// TODO use a hash algo do this.
 		if dt, size := s.peekN(7); size > 0 && bytes.EqualFold(dt, doctype) {
 			tok = token.DOCTYPE
 			// <!DOCTYPE html>
-			err = "component source cannot contain HTML Doctype"
+			err = "component source code cannot contain HTML Doctype"
 		}
 	}
 
@@ -855,7 +857,9 @@ func (s *Scanner) scanStartTag() (lit string) {
 				break
 			}
 		}
-		errOff = s.offset
+		if errOff < 0 {
+			errOff = s.offset
+		}
 	}
 
 	buf := s.src[off:s.offset]
@@ -1314,7 +1318,7 @@ func (s *Scanner) scanCodeBlock() (tok token.Token, lit string) {
 
 func (s *Scanner) Scan() (loc token.Loc, tok token.Token, lit string) {
 	tok = token.ILLEGAL
-	if s.offset == 0 {
+	if s.offset == 0 && !s.debug {
 		// Enforces component source code must begin with a valid HTML tag to ensure readability.
 		if s.ch == '<' {
 			if r, _ := s.peekRune(); isUnicodeLetter(r) {
@@ -1351,7 +1355,7 @@ scanAgain:
 		s.state = stateText
 	case stat == stateTagOpen:
 		r, _ := s.peekRune()
-		// end tag open, something lik </div
+		// end tag open, something like </div
 		if r == '/' {
 			// consume `<`
 			s.next()
@@ -1367,7 +1371,7 @@ scanAgain:
 			break
 		}
 		// start tag open, something lik <div
-		if isLetter(r) {
+		if isUnicodeLetter(r) {
 			// consume `<`
 			s.next()
 			tok = token.STARTTagOpen
@@ -1448,7 +1452,7 @@ scanAgain:
 			p, _ := s.peekRune()
 			// doctype or comment: `<!`
 			if p == '!' {
-				tok, lit = s.scanDoctype()
+				tok, lit = s.scanComment()
 				break
 			}
 			// xml instruction: `<?`

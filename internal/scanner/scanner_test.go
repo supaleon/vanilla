@@ -10,7 +10,15 @@ import (
 var fset = token.NewFileSet()
 
 func TestAny(t *testing.T) {
-	//fmt.Sprintf()
+	x := make(map[string]string)
+	x["a"] = "1"
+	x["b"] = "2"
+	for z := range x {
+		println(z)
+	}
+	//time.Unix(1756112902, 0)
+	//tt, _ := time.Parse("2006-01-02 15:04:05", "1756112902")
+	//println(time.Unix(1756112902, 0).String())
 }
 
 func TestHeaderChecking(t *testing.T) {

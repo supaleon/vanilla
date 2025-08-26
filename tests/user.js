@@ -8,5 +8,8 @@ function test() {
 // let x = new test()
 // console.log(x.name)
 
+for (const x in test()) {
+    console.log(x)
+}
 
-console.log(+3)
+// console.log(+3)

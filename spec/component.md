@@ -1,6 +1,11 @@
 # Vanilla Component File Specification
-Vanilla uses HTML, CSS, and Javascript to build UIs. Unlike traditional methods, Vanilla introduces a component system.
-Each Vanilla component can be viewed as an HTML file; Vanilla simply enhances the HTML syntax and sets certain limitations.
+Vanilla uses HTML, CSS, and Javascript to build UIs, and has a lightweight component system built on top of HTML.
+
+Unlike other frameworks, Vanilla avoids complex template directives and syntactic sugar, keeping its components as lightweight as possible. Vanilla
+advocates for moving complex data logic into handlers instead of templates, which makes the component content more readable and easier to maintain.
+
+If you need a framework with rich template features, Vanilla is not the right choice. Its philosophy is: code is written for people to read; it only
+happens to run on machines
 
 ## File Naming and Location
 Vanilla components adopt the standard `.html` extension for HTML files.
@@ -34,6 +39,35 @@ Component Content Layout Examples:
     </span>
     <script src="external.js"></script>
 </div>
+```
+
+`Example02.html`
+```HTML
+<script>
+    // ES Module code block
+</script>
+
+<head>
+    <!--Template code block-->
+    <style>
+        body{
+            background: black;
+        }
+    </style>
+</head>
+```
+
+`Example03.html`
+```HTML
+<script>
+    // ES Module code block
+</script>
+
+<metadata>
+    <!--Template code block-->
+    <title>My First Vanilla Page</title>
+    <meta charset="UTF-8"/>
+</metadata>
 ```
 
 ## Component Imports
@@ -79,11 +113,19 @@ Example:
 <script>
     import {User} from "./user.go"
     // Equals Go's User type instance `User{}`.
-    const user = prop(User())
-    // Equals Go's []any type instance `make([]any, 0)`.
-    const tags = prop([])
+    let user = prop(User())
+    // Equals Go's []any type instance `make([]any,0)`.
+    let tags = prop([])
+    // Equals Go's map[string]any type instance `make(map[string]any)`.
+    let jsonObject = prop({})
     // Equals Go's string type instance `dark`.
-    const theme = prop("dark")
+    let theme = prop("dark")
+    // Equals Go's bool type instance `false`.
+    let disable = prop(false)
+    // Equals Go's int32 type instance `1`.
+    let counts = prop(1)
+    // Equals Go's float32 type instance `0.8`.
+    let discount = prop(0.8)
 </script>
 ```
 

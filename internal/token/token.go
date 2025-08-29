@@ -24,36 +24,40 @@ const (
 	IN           // in
 	TRUE         // true
 	FALSE        // false
+	NIL          // nil, Go keywords
+	LEN          // len()
+	OK           // ok()
+	EMPTY        // empty()
 	keywordEnd   // End of keyword tokens
 
-	operatorBegin  // Start of operator tokens
-	SUB            // -
-	ADD            // +
-	LT             // <
-	GT             // >
-	GE             // >=
-	LE             // <=
-	EQ             // ==
-	NE             // !=
-	NOT            // !
-	DOT            // .
-	DOTDot         // ..
-	AND            // &&
-	OR             // ||
-	LPAREN         // (
-	RPAREN         // )
-	LBRACKET       // [
-	RBRACKET       // ]
-	COMMA          // ,
-	LBRACE         // {
-	RBRACE         // }
-	SLASH          // /
-	STARTTagOpen   // <
-	TAGClose       // >
-	TAGSelfClosing // />
-	ENDTagOpen     // </
-	ATTRValSep     // =
-	operatorEnd    // End of operator tokens
+	operatorBegin // Start of operator tokens
+	SUB           // -
+	ADD           // +
+	LT            // <
+	GT            // >
+	GE            // >=
+	LE            // <=
+	EQ            // ==
+	NE            // !=
+	NOT           // !
+	DOT           // .
+	DOTDot        // ..
+	AND           // &&
+	OR            // ||
+	LPAREN        // (
+	RPAREN        // )
+	LBRACKET      // [
+	RBRACKET      // ]
+	COMMA         // ,
+	LBRACE        // {
+	RBRACE        // }
+	SLASH         // /
+	STARTTagOpen  // <
+	TAGClose      // >
+	TAGSelfClose  // />
+	ENDTagOpen    // </
+	ATTRValSep    // =
+	operatorEnd   // End of operator tokens
 
 	TAGName      // div
 	ATTRName     // class
@@ -79,16 +83,16 @@ var tokens = [...]string{
 	COMMENT: "comment",
 	TEXT:    "text",
 
-	STARTTagOpen:   "<", // <
-	TAGClose:       ">", // >
-	TAGSelfClosing: "/>",
-	ENDTagOpen:     "</",
-	TAGName:        "tagName",
-	ATTRName:       "attributeName",
-	ATTRValSep:     "=",
-	ATTRValDelim:   "attributeValueDelimiter",
-	ATTRValText:    "attributeValueText",
-	SPACE:          "space",
+	STARTTagOpen: "<", // <
+	TAGClose:     ">", // >
+	TAGSelfClose: "/>",
+	ENDTagOpen:   "</",
+	TAGName:      "tagName",
+	ATTRName:     "attributeName",
+	ATTRValSep:   "=",
+	ATTRValDelim: "attributeValueDelimiter",
+	ATTRValText:  "attributeValueText",
+	SPACE:        "space",
 
 	IF:    "if",
 	ELSE:  "else",
@@ -96,6 +100,10 @@ var tokens = [...]string{
 	IN:    "in",
 	TRUE:  "true",
 	FALSE: "false",
+	NIL:   "nil",   // nil, Go keywords
+	LEN:   "len",   // len()
+	OK:    "ok",    // ok()
+	EMPTY: "empty", // empty()
 
 	LT:       "<",
 	GT:       ">",

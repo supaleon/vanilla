@@ -9,18 +9,6 @@ import (
 
 var fset = token.NewFileSet()
 
-func TestAny(t *testing.T) {
-	x := make(map[string]string)
-	x["a"] = "1"
-	x["b"] = "2"
-	for z := range x {
-		println(z)
-	}
-	//time.Unix(1756112902, 0)
-	//tt, _ := time.Parse("2006-01-02 15:04:05", "1756112902")
-	//println(time.Unix(1756112902, 0).String())
-}
-
 func TestHeaderChecking(t *testing.T) {
 	tests := []struct {
 		src, wantLit, wantErr string
@@ -184,7 +172,6 @@ func TestNumbers(t *testing.T) {
 		{token.FLOAT, ".0e-1", ".0e-1", ""},
 		{token.FLOAT, ".123E+10", ".123E+10", ""},
 		{token.FLOAT, ".0123E123", ".0123E123", ""},
-
 		{token.FLOAT, "0.0e1", "0.0e1", ""},
 		{token.FLOAT, "123.123E-10", "123.123E-10", ""},
 		{token.FLOAT, "0123.0123e+456", "0123.0123e+456", ""},
@@ -453,7 +440,7 @@ func TestTags(t *testing.T) {
 		},
 		{
 			src:  `<div/>`,
-			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGSelfClosing},
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGSelfClose},
 			lits: []string{"<", "div", "/>"},
 		},
 		{
@@ -518,6 +505,7 @@ func TestTags(t *testing.T) {
 			src:  `<my_tag>`,
 			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGClose},
 			lits: []string{"<", "my_tag", ">"},
+			err:  "invalid character '_' in start tag name",
 		},
 		{
 			src:  `<my--tag>`,
@@ -526,9 +514,8 @@ func TestTags(t *testing.T) {
 		},
 		{
 			src:  `<div / >`,
-			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.ATTRName, token.TAGClose},
-			lits: []string{"<", "div", "/", ">"},
-			err:  "invalid character '/' in attribute name",
+			toks: []token.Token{token.STARTTagOpen, token.TAGName, token.TAGSelfClose},
+			lits: []string{"<", "div", "/>"},
 		},
 		{
 			src:  `<div{foo}>`,
@@ -538,9 +525,8 @@ func TestTags(t *testing.T) {
 		},
 		{
 			src:  `</>`,
-			toks: []token.Token{token.ENDTagOpen, token.TEXT},
-			lits: []string{"</", ">"},
-			err:  "invalid character '>' in end tag name",
+			toks: []token.Token{token.ENDTagOpen, token.TAGName, token.TAGClose},
+			lits: []string{"</", "", ">"},
 		},
 		{
 			src:  `<>`,
@@ -560,8 +546,6 @@ func TestTags(t *testing.T) {
 			errs = append(errs, msg)
 		})
 
-		s.debug = true
-
 		for j, wantTok := range test.toks {
 			_, tok, lit := s.Scan()
 
@@ -578,7 +562,7 @@ func TestTags(t *testing.T) {
 				lit = "</"
 			case token.TAGClose:
 				lit = ">"
-			case token.TAGSelfClosing:
+			case token.TAGSelfClose:
 				lit = "/>"
 			}
 
@@ -587,6 +571,423 @@ func TestTags(t *testing.T) {
 			}
 		}
 
+		_, tok, _ := s.Scan()
+		if tok != token.EOF {
+			t.Errorf("[%d] %q: got %s; want EOF", i, test.src, tok)
+		}
+
+		if test.err != "" {
+			if len(errs) == 0 {
+				t.Errorf("[%d] %q: expected error %q, but got none", i, test.src, test.err)
+			} else if errs[0] != test.err {
+				t.Errorf("[%d] %q: expected error %q, but got %q", i, test.src, test.err, errs[0])
+			}
+		} else if len(errs) > 0 {
+			t.Errorf("[%d] %q: unexpected error: %q", i, test.src, errs[0])
+		}
+	}
+}
+
+func TestAttributes(t *testing.T) {
+	tests := []struct {
+		src  string
+		toks []token.Token
+		lits []string
+		err  string
+	}{
+		{
+			src:  `class`,
+			toks: []token.Token{token.ATTRName},
+			lits: []string{"class"},
+		},
+		{
+			src:  `class>`,
+			toks: []token.Token{token.ATTRName, token.TAGClose},
+			lits: []string{"class", ">"},
+		},
+		{
+			src:  `class/>`,
+			toks: []token.Token{token.ATTRName, token.TAGSelfClose},
+			lits: []string{"class", "/>"},
+		},
+		{
+			src:  `class=`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep},
+			lits: []string{"class", "="},
+		},
+		{
+			src:  `class==`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValText},
+			lits: []string{"class", "=", "="},
+			err:  "invalid character '=' in unquoted attribute value",
+		},
+		{
+			src:  `class=>`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep, token.TAGClose},
+			lits: []string{"class", "=", ">"},
+			err:  "missing attribute value",
+		},
+		{
+			src:  `class=  zzz`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValText},
+			lits: []string{"class", "=", "zzz"},
+		},
+		{
+			src:  `class='dark`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValDelim, token.ILLEGAL},
+			lits: []string{"class", "=", "'", "dark"},
+			err:  "attribute not terminated",
+		},
+		{
+			src:  `class="`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValDelim},
+			lits: []string{"class", "=", "\""},
+		},
+		{
+			src:  `class=""`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValDelim, token.ATTRValDelim},
+			lits: []string{"class", "=", `"`, `"`},
+		},
+		{
+			src:  `class="value"`,
+			toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValDelim, token.ATTRValText, token.ATTRValDelim},
+			lits: []string{"class", "=", `"`, "value", `"`},
+		},
+		{
+			src: `class='value'`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.ATTRValDelim,
+			},
+			lits: []string{"class", "=", "'", "value", "'"},
+		},
+		{
+			src: `class=   'value'`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.ATTRValDelim,
+			},
+			lits: []string{"class", "=", "'", "value", "'"},
+		},
+		{
+			src: `class='value'>`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.ATTRValDelim,
+				token.TAGClose,
+			},
+			lits: []string{"class", "=", "'", "value", "'", ">"},
+		},
+		{
+			src: `class="foo" id="bar"`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.ATTRValDelim,
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.ATTRValDelim,
+			},
+			lits: []string{"class", "=", `"`, "foo", `"`, "id", "=", `"`, "bar", `"`},
+		},
+		{
+			src: `disabled={`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+			},
+			lits: []string{"disabled", "=", "{"},
+		},
+		{
+			src: `disabled=}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValText,
+			},
+			lits: []string{"disabled", "=", "}"},
+			err:  "invalid character '}' in unquoted attribute value",
+		},
+		{
+			src: `disabled=}}}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValText,
+			},
+			lits: []string{"disabled", "=", "}}}"},
+			err:  "invalid character '}' in unquoted attribute value",
+		},
+		{
+			src: `disabled=}}}a`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValText,
+			},
+			lits: []string{"disabled", "=", "}}}a"},
+			err:  "invalid character '}' in unquoted attribute value",
+		},
+		{
+			src: `disabled={{`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.LBRACE,
+			},
+			lits: []string{"disabled", "=", "{", "{"},
+		},
+		{
+			src: `disabled={{a`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.LBRACE,
+				token.IDENT,
+			},
+			lits: []string{"disabled", "=", "{", "{", "a"},
+		},
+		{
+			src: `disabled={}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.RBRACE,
+			},
+			lits: []string{"disabled", "=", "{", "}"},
+		},
+		{
+			src: `disabled={}/>`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.RBRACE,
+				token.TAGSelfClose,
+			},
+			lits: []string{"disabled", "=", "{", "}", "/>"},
+		},
+		{
+			src: `disabled={}/`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.RBRACE,
+				token.ATTRName,
+			},
+			lits: []string{"disabled", "=", "{", "}", "/"},
+			err:  "invalid character '/' in attribute name",
+		},
+		{
+			src: `disabled={))}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.RPAREN,
+				token.RPAREN,
+				token.RBRACE,
+			},
+			lits: []string{"disabled", "=", "{", ")", ")", "}"},
+		},
+		{
+			src: `disabled={var.abc[0]}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.IDENT,
+				token.DOT,
+				token.IDENT,
+				token.LBRACKET,
+				token.INT,
+				token.RBRACKET,
+				token.RBRACE,
+			},
+			lits: []string{"disabled", "=", "{", "var", ".", "abc", "[", "0", "]", "}"},
+		},
+		{
+			src: `disabled={!flag}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.NOT,
+				token.IDENT,
+				token.RBRACE,
+			},
+			lits: []string{"disabled", "=", "{", "!", "flag", "}"},
+		},
+		{
+			src: `disabled={+}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.ILLEGAL,
+				token.RBRACE,
+			},
+			lits: []string{"disabled", "=", "{", "+", "}"},
+			err:  "invalid character '+' in attribute expression",
+		},
+		{
+			src: `disabled={1}`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.INT,
+				token.RBRACE,
+			},
+			lits: []string{"disabled", "=", "{", "1", "}"},
+		},
+		{
+			src: `disabled={abc }`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.IDENT,
+				token.ILLEGAL,
+				token.ATTRName,
+			},
+			lits: []string{"disabled", "=", "{", "abc", " ", "}"},
+			err:  "whitespace is not allowed in attribute expression",
+		},
+		{
+			src: `disabled={abc' }`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.IDENT,
+				token.ILLEGAL,
+				token.ATTRName,
+			},
+			lits: []string{"disabled", "=", "{", "abc", "'", "}"},
+			err:  "invalid character '\\'' in attribute expression",
+		},
+		{
+			src: `disabled={abc" }`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.LBRACE,
+				token.IDENT,
+				token.ILLEGAL,
+				token.ATTRName,
+			},
+			lits: []string{"disabled", "=", "{", "abc", "\"", "}"},
+			err:  "invalid character '\"' in attribute expression",
+		},
+		{
+			src: `class="prefix-{className}"`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.LBRACE,
+				token.IDENT,
+				token.RBRACE,
+				token.ATTRValDelim,
+			},
+			lits: []string{"class", "=", `"`, "prefix-", "{", "className", "}", `"`},
+		},
+		{
+			src: `class="prefix-{className"`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.LBRACE,
+				token.IDENT,
+				token.ATTRValDelim,
+			},
+			lits: []string{"class", "=", `"`, "prefix-", "{", "className", `"`},
+		},
+		{
+			src: `class="prefix-{className''"`,
+			toks: []token.Token{
+				token.ATTRName,
+				token.ATTRValSep,
+				token.ATTRValDelim,
+				token.ATTRValText,
+				token.LBRACE,
+				token.IDENT,
+				token.ILLEGAL,
+				token.ATTRValDelim,
+			},
+			lits: []string{"class", "=", `"`, "prefix-", "{", "className", "''", `"`},
+			err:  "invalid character '\\'' in attribute interpolation expression",
+		},
+		//{
+		//	src:  `class="foo"id="bar"`,
+		//	toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValDelim, token.ATTRValDelim, token.ATTRValDelim, token.ATTRName, token.ATTRValSep, token.ATTRValDelim, token.ATTRValDelim, token.ATTRValDelim},
+		//	lits: []string{"class", "=", `"`, "foo", `"`, "id", "=", `"`, "bar", `"`},
+		//	err:  "missing whitespace between attribute name 'i' and the previous attribute",
+		//},
+		//{
+		//	src:  `class==value`,
+		//	toks: []token.Token{token.ATTRName, token.ATTRValSep, token.ATTRValText},
+		//	lits: []string{"class", "=", "=value"},
+		//	err:  "invalid character '=' in unquoted attribute value",
+		//},
+	}
+
+	for i, test := range tests {
+		src := "<div " + test.src
+		var errs []string
+		s := New(fset.AddFile("", fset.Base(), len(src)), []byte(src), func(_ token.Position, msg string) {
+			if len(errs) == 0 { // Store only the first error
+				errs = append(errs, msg)
+			}
+		})
+		s.debug = true
+
+		// Consume "<div " - 2 tokens: STARTTagOpen, TAGName
+		s.Scan()
+		s.Scan()
+
+		for j, wantTok := range test.toks {
+			_, tok, lit := s.Scan()
+			//println("====", tok.String())
+			if tok != wantTok {
+				t.Errorf("[%d] %q: got token %s; want %s", i, test.src, tok, wantTok)
+				break
+			}
+
+			wantLit := test.lits[j]
+			switch ts := tok; {
+			case ts.IsOperator():
+				lit = ts.String()
+			}
+
+			if lit != wantLit {
+				t.Errorf("[%d] %q: got literal %q for token %s; want %q", i, test.src, lit, tok, wantLit)
+			}
+		}
+
+		// Check for EOF
 		_, tok, _ := s.Scan()
 		if tok != token.EOF {
 			t.Errorf("[%d] %q: got %s; want EOF", i, test.src, tok)

@@ -110,7 +110,7 @@ func isTagNameChar(ch rune) bool {
 
 func isAttrNameChar(ch rune) bool {
 	// for attribute name.
-	if ch == '"' || ch == '\'' || ch == '=' || ch == '\\' || ch == '/' || isWhitespace(ch) {
+	if ch == '"' || ch == '\'' || ch == '=' || ch == '\\' || ch == '/' {
 		return false
 	}
 	return true

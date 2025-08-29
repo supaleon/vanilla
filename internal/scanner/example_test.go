@@ -10,6 +10,13 @@ import (
 	"github.com/supaleon/vanilla/internal/token"
 )
 
+func TestAny(t *testing.T) {
+	var z = 1
+	if z == -1 {
+		println("yes")
+	}
+}
+
 var testCases = []struct {
 	Expect bool
 	File   string
